@@ -44,7 +44,7 @@ private[r] class GeneralizedLinearRegressionWrapper private (
     val isLoaded: Boolean = false) extends MLWritable {
 
   private val glm: GeneralizedLinearRegressionModel =
-    pipeline.stages(1).asInstanceOf[GeneralizedLinearRegressionModel]
+    pipeline.stages(1).asInstanceOf[GeneralizedLinearRegressionModel]  /* NOTE: Getting something from pipeline */
 
   lazy val rDevianceResiduals: DataFrame = glm.summary.residuals()
 
@@ -52,7 +52,7 @@ private[r] class GeneralizedLinearRegressionWrapper private (
 
   def residuals(residualsType: String): DataFrame = glm.summary.residuals(residualsType)
 
-  def transform(dataset: Dataset[_]): DataFrame = {
+  def transform(dataset: Dataset[_]): DataFrame = { /* NOTE: Transform is defined here. Transforms using pipeline method with features column */
     pipeline.transform(dataset).drop(glm.getFeaturesCol)
   }
 
@@ -61,7 +61,7 @@ private[r] class GeneralizedLinearRegressionWrapper private (
 }
 
 private[r] object GeneralizedLinearRegressionWrapper
-  extends MLReadable[GeneralizedLinearRegressionWrapper] {
+  extends MLReadable[GeneralizedLinearRegressionWrapper] { /* NOTE: What is/where is MLReadable? */
 
   def fit(
       formula: String,
@@ -72,14 +72,21 @@ private[r] object GeneralizedLinearRegressionWrapper
       maxIter: Int,
       weightCol: String,
       regParam: Double): GeneralizedLinearRegressionWrapper = {
-    val rFormula = new RFormula().setFormula(formula)
-    checkDataColumns(rFormula, data)
-    val rFormulaModel = rFormula.fit(data)
+      
+    val rFormula = new RFormula().setFormula(formula)   // *formula* is the string of an R expression -- Implements the transforms required for fitting a dataset against an R model formula. Currently support the R operators '~', '.', ':', '+', and '-'. 
+    // so this enables it to recognise and deal with R expressions
+    checkDataColumns(rFormula, data)    // RWrapperUtils.chechDataColumns -- """ Removes potential conflicts in column names like "features" """
+    val rFormulaModel = rFormula.fit(data)    // This does alot of the work it seems.. 
+    // rFormulaModel thus becomes the result of: 
+    //     val pipelineModel = new Pipeline(uid).setStages(encoderStages.toArray).fit(dataset)
+    //     copyValues(new RFormulaModel(uid, resolvedFormula, pipelineModel).setParent(this))
+    
     // get labels and feature names from output schema
     val schema = rFormulaModel.transform(data).schema
     val featureAttrs = AttributeGroup.fromStructField(schema(rFormula.getFeaturesCol))
       .attributes.get
     val features = featureAttrs.map(_.name.get)
+    
     // assemble and fit the pipeline
     val glr = new GeneralizedLinearRegression()
       .setFamily(family)

@@ -135,9 +135,9 @@ class RFormula @Since("1.5.0") (@Since("1.5.0") override val uid: String)
   override def fit(dataset: Dataset[_]): RFormulaModel = {
     transformSchema(dataset.schema, logging = true)
     require(isDefined(formula), "Formula must be defined first.")
-    val parsedFormula = RFormulaParser.parse($(formula))
-    val resolvedFormula = parsedFormula.resolve(dataset.schema)
-    val encoderStages = ArrayBuffer[PipelineStage]()
+    val parsedFormula = RFormulaParser.parse($(formula))           // parses formula of structure "label ~ terms" s.t. calls ParsedRFormula(label: ColumnRef, terms: Seq[Term])
+    val resolvedFormula = parsedFormula.resolve(dataset.schema)    // Resolves formula terms into column names
+    val encoderStages = ArrayBuffer[PipelineStage]()               // array for pipeline stages
 
     val prefixesToRewrite = mutable.Map[String, String]()
     val tempColumns = ArrayBuffer[String]()

@@ -37,7 +37,7 @@ import org.apache.spark.sql.types.{DataType, DoubleType, StructType}
 
 
 /**
- * Params for Generalized Linear Regression.
+ * Params for Generalized Linear Regression. Definition for the GLM-base *trait*
  */
 private[regression] trait GeneralizedLinearRegressionBase extends PredictorParams
   with HasFitIntercept with HasMaxIter with HasTol with HasRegParam with HasWeightCol
