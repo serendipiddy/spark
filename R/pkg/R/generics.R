@@ -1359,6 +1359,10 @@ setGeneric("spark.isoreg", function(data, formula, ...) { standardGeneric("spark
 #' @export
 setGeneric("spark.kmeans", function(data, formula, ...) { standardGeneric("spark.kmeans") })
 
+#' @rdname spark.notkmeans
+#' @export
+setGeneric("spark.notkmeans", function(data, formula, ...) { standardGeneric("spark.notkmeans") })
+
 #' @rdname spark.kstest
 #' @export
 setGeneric("spark.kstest", function(data, ...) { standardGeneric("spark.kstest") })
