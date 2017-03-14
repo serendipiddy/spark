@@ -44,6 +44,8 @@ private[r] object RWrappers extends MLReader[Object] {
         GeneralizedLinearRegressionWrapper.load(path)
       case "org.apache.spark.ml.r.KMeansWrapper" =>
         KMeansWrapper.load(path)
+      case "org.apache.spark.ml.r.notKMeansWrapper" =>  // added code for notKmeans tests
+        notKMeansWrapper.load(path)
       case "org.apache.spark.ml.r.MultilayerPerceptronClassifierWrapper" =>
         MultilayerPerceptronClassifierWrapper.load(path)
       case "org.apache.spark.ml.r.LDAWrapper" =>

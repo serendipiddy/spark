@@ -1141,7 +1141,11 @@ read.ml <- function(path) {
     new("GeneralizedLinearRegressionModel", jobj = jobj)
   } else if (isInstanceOf(jobj, "org.apache.spark.ml.r.KMeansWrapper")) {
     new("KMeansModel", jobj = jobj)
-  } else if (isInstanceOf(jobj, "org.apache.spark.ml.r.LDAWrapper")) {
+  }
+    else if (isInstanceOf(jobj, "org.apache.spark.ml.r.notKMeansWrapper")) {
+    new("notKMeansModel", jobj = jobj)
+  } 
+  else if (isInstanceOf(jobj, "org.apache.spark.ml.r.LDAWrapper")) {
     new("LDAModel", jobj = jobj)
   } else if (isInstanceOf(jobj, "org.apache.spark.ml.r.MultilayerPerceptronClassifierWrapper")) {
     new("MultilayerPerceptronClassificationModel", jobj = jobj)
@@ -2112,3 +2116,65 @@ print.summary.GBTRegressionModel <- function(x, ...) {
 print.summary.GBTClassificationModel <- function(x, ...) {
   print.summary.treeEnsemble(x)
 }
+
+# sections required to add notKmeans to this code
+# notKmeans testing code 1/7 additions
+setClass("notKMeansModel", representation(jobj = "jobj"))
+# notKmeans testing code 2/7 additions
+setMethod("spark.notkmeans", signature(data = "SparkDataFrame", formula = "formula"),
+          function(data, formula, k = 2, maxIter = 20, initMode = c("k-means||", "random")) {
+            formula <- paste(deparse(formula), collapse = "")
+            initMode <- match.arg(initMode)
+            jobj <- callJStatic("org.apache.spark.ml.r.notKMeansWrapper", "fit", data@sdf, formula,
+                                as.integer(k), as.integer(maxIter), initMode)
+            new("notKMeansModel", jobj = jobj)
+          })
+# notKmeans testing code 3/7 additions
+setMethod("write.ml", signature(object = "notKMeansModel", path = "character"),
+          function(object, path, overwrite = FALSE) {
+            write_internal(object, path, overwrite)
+          })
+# notKmeans testing code 4/7 additions
+# this is added above in the read.ml function
+# read.ml {
+# else if (isInstanceOf(jobj, "org.apache.spark.ml.r.notKMeansWrapper")) {
+#     new("notKMeansModel", jobj = jobj)
+# }
+#}
+# notKmeans testing code 5/7 additions
+setMethod("fitted", signature(object = "notKMeansModel"),
+          function(object, method = c("centers", "classes")) {
+            method <- match.arg(method)
+            jobj <- object@jobj
+            is.loaded <- callJMethod(jobj, "isLoaded")
+            if (is.loaded) {
+              stop("Saved-loaded (not) k-means model does not support 'fitted' method")
+            } else {
+              dataFrame(callJMethod(jobj, "fitted", method))
+            }
+          })
+# notKmeans testing code 6/7 additions
+setMethod("summary", signature(object = "notKMeansModel"),
+          function(object) {
+            jobj <- object@jobj
+            is.loaded <- callJMethod(jobj, "isLoaded")
+            features <- callJMethod(jobj, "features")
+            coefficients <- callJMethod(jobj, "coefficients")
+            k <- callJMethod(jobj, "k")
+            size <- callJMethod(jobj, "size")
+            coefficients <- t(matrix(coefficients, ncol = k))
+            colnames(coefficients) <- unlist(features)
+            rownames(coefficients) <- 1:k
+            cluster <- if (is.loaded) {
+              NULL
+            } else {
+              dataFrame(callJMethod(jobj, "cluster"))
+            }
+            list(k = k, coefficients = coefficients, size = size,
+                 cluster = cluster, is.loaded = is.loaded)
+          })
+# notKmeans testing code 7/7 additions
+setMethod("predict", signature(object = "notKMeansModel"),
+          function(object, newData) {
+            predict_internal(object, newData)
+          })
