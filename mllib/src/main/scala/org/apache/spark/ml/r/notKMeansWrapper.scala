@@ -41,7 +41,7 @@ private[r] class notKMeansWrapper private (
 
   lazy val k: Int = kMeansModel.getK
 
-  lazy val cluster: DataFrame = notkMeansModel.summary.cluster
+  lazy val cluster: DataFrame = kMeansModel.summary.cluster
 
   def fitted(method: String): DataFrame = {
     if (method == "centers") {
@@ -58,7 +58,7 @@ private[r] class notKMeansWrapper private (
     pipeline.transform(dataset).drop(kMeansModel.getFeaturesCol)
   }
 
-  override def write: MLWriter = new notKMeansWrapper.KMeansWrapperWriter(this)
+  override def write: MLWriter = new notKMeansWrapper.notKMeansWrapperWriter(this)
 }
 
 private[r] object notKMeansWrapper extends MLReadable[notKMeansWrapper] {
