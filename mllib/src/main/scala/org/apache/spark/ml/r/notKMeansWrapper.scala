@@ -41,7 +41,7 @@ private[r] class notKMeansWrapper private (
 
   lazy val k: Int = kMeansModel.getK
 
-  lazy val cluster: DataFrame = kMeansModel.summary.cluster
+  lazy val cluster: DataFrame = notkMeansModel.summary.cluster
 
   def fitted(method: String): DataFrame = {
     if (method == "centers") {
