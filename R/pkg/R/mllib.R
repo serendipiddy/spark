@@ -2119,9 +2119,57 @@ print.summary.GBTClassificationModel <- function(x, ...) {
 
 # # # sections required to add notKmeans to this code
 # # # notKmeans testing code 1/7 additions
-# # setClass("KMeansModel", representation(jobj = "jobj"))
-# notKmeans testing code 2/7 additions
+# # #' S4 class that represents a KMeansModel
+# # #'
+# # #' @param jobj a Java object reference to the backing Scala KMeansModel
+# # #' @export
+# # #' @note KMeansModel since 2.0.0
+# # # setClass("KMeansModel", representation(jobj = "jobj"))
+# # notKmeans testing code 2/7 additions
 
+
+
+#' (not) K-Means Clustering Model
+#'
+#' Fits a (not) k-means clustering model against a Spark DataFrame, similarly to R's kmeans().
+#' Users can call \code{summary} to print a summary of the fitted model, \code{predict} to make
+#' predictions on new data, and \code{write.ml}/\code{read.ml} to save/load fitted models.
+#'
+#' @param data a SparkDataFrame for training.
+#' @param formula a symbolic description of the model to be fitted. Currently only a few formula
+#'                operators are supported, including '~', '.', ':', '+', and '-'.
+#'                Note that the response variable of formula is empty in spark.kmeans.
+#' @param k number of centers.
+#' @param maxIter maximum iteration number.
+#' @param initMode the initialization algorithm choosen to fit the model.
+#' @param ... additional argument(s) passed to the method.
+#' @return \code{spark.kmeans} returns a fitted k-means model.
+#' @rdname spark.notkmeans
+#' @aliases spark.notkmeans,SparkDataFrame,formula-method
+#' @name spark.notkmeans
+#' @export
+#' @examples
+#' \dontrun{
+#' sparkR.session()
+#' data(iris)
+#' df <- createDataFrame(iris)
+#' model <- spark.notkmeans(df, Sepal_Length ~ Sepal_Width, k = 4, initMode = "random")
+#' summary(model)
+#'
+#' # fitted values on training data
+#' fitted <- predict(model, df)
+#' head(select(fitted, "Sepal_Length", "prediction"))
+#'
+#' # save fitted model to input path
+#' path <- "path/to/model"
+#' write.ml(model, path)
+#'
+#' # can also read back the saved model and print
+#' savedModel <- read.ml(path)
+#' summary(savedModel)
+#' }
+#' @note spark.notkmeans since 2.0.0
+#' @seealso \link{predict}, \link{read.ml}, \link{write.ml}
 setMethod("spark.notkmeans", signature(data = "SparkDataFrame", formula = "formula"),
           function(data, formula, k = 2, maxIter = 20, initMode = c("k-means||", "random")) {
             formula <- paste(deparse(formula), collapse = "")
@@ -2130,6 +2178,7 @@ setMethod("spark.notkmeans", signature(data = "SparkDataFrame", formula = "formu
                                 as.integer(k), as.integer(maxIter), initMode)
             new("notKMeansModel", jobj = jobj)
           })
+          
 # # # notKmeans testing code 3/7 additions
 # # setMethod("write.ml", signature(object = "KMeansModel", path = "character"),
           # # function(object, path, overwrite = FALSE) {
