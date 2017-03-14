@@ -1143,7 +1143,7 @@ read.ml <- function(path) {
     new("KMeansModel", jobj = jobj)
   }
     else if (isInstanceOf(jobj, "org.apache.spark.ml.r.notKMeansWrapper")) {
-    new("notKMeansModel", jobj = jobj)
+    new("KMeansModel", jobj = jobj)
   } 
   else if (isInstanceOf(jobj, "org.apache.spark.ml.r.LDAWrapper")) {
     new("LDAModel", jobj = jobj)
@@ -2119,7 +2119,7 @@ print.summary.GBTClassificationModel <- function(x, ...) {
 
 # sections required to add notKmeans to this code
 # notKmeans testing code 1/7 additions
-setClass("notKMeansModel", representation(jobj = "jobj"))
+setClass("KMeansModel", representation(jobj = "jobj"))
 # notKmeans testing code 2/7 additions
 setMethod("spark.notkmeans", signature(data = "SparkDataFrame", formula = "formula"),
           function(data, formula, k = 2, maxIter = 20, initMode = c("k-means||", "random")) {
@@ -2130,7 +2130,7 @@ setMethod("spark.notkmeans", signature(data = "SparkDataFrame", formula = "formu
             new("notKMeansModel", jobj = jobj)
           })
 # notKmeans testing code 3/7 additions
-setMethod("write.ml", signature(object = "notKMeansModel", path = "character"),
+setMethod("write.ml", signature(object = "KMeansModel", path = "character"),
           function(object, path, overwrite = FALSE) {
             write_internal(object, path, overwrite)
           })
@@ -2142,7 +2142,7 @@ setMethod("write.ml", signature(object = "notKMeansModel", path = "character"),
 # }
 #}
 # notKmeans testing code 5/7 additions
-setMethod("fitted", signature(object = "notKMeansModel"),
+setMethod("fitted", signature(object = "KMeansModel"),
           function(object, method = c("centers", "classes")) {
             method <- match.arg(method)
             jobj <- object@jobj
@@ -2154,7 +2154,7 @@ setMethod("fitted", signature(object = "notKMeansModel"),
             }
           })
 # notKmeans testing code 6/7 additions
-setMethod("summary", signature(object = "notKMeansModel"),
+setMethod("summary", signature(object = "KMeansModel"),
           function(object) {
             jobj <- object@jobj
             is.loaded <- callJMethod(jobj, "isLoaded")
@@ -2174,7 +2174,7 @@ setMethod("summary", signature(object = "notKMeansModel"),
                  cluster = cluster, is.loaded = is.loaded)
           })
 # notKmeans testing code 7/7 additions
-setMethod("predict", signature(object = "notKMeansModel"),
+setMethod("predict", signature(object = "KMeansModel"),
           function(object, newData) {
             predict_internal(object, newData)
           })

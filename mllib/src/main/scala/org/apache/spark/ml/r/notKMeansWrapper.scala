@@ -58,7 +58,7 @@ private[r] class notKMeansWrapper private (
     pipeline.transform(dataset).drop(kMeansModel.getFeaturesCol)
   }
 
-  override def write: MLWriter = new KMeansWrapper.KMeansWrapperWriter(this)
+  override def write: MLWriter = new notKMeansWrapper.KMeansWrapperWriter(this)
 }
 
 private[r] object notKMeansWrapper extends MLReadable[notKMeansWrapper] {
