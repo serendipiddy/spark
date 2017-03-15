@@ -2176,7 +2176,7 @@ setMethod("spark.notkmeans", signature(data = "SparkDataFrame", formula = "formu
             initMode <- match.arg(initMode)
             jobj <- callJStatic("org.apache.spark.ml.r.notKMeansWrapper", "fit", data@sdf, formula,
                                 as.integer(k), as.integer(maxIter), initMode)
-            new("notKMeansModel", jobj = jobj)
+            new("KMeansModel", jobj = jobj)
           })
           
 # # # notKmeans testing code 3/7 additions
