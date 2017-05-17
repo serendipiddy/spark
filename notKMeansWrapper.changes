@@ -1,0 +1,251 @@
+diff --git a/R/pkg/NAMESPACE b/R/pkg/NAMESPACE
+index 377f942..4102f40 100644
+--- a/R/pkg/NAMESPACE
++++ b/R/pkg/NAMESPACE
+@@ -33,6 +33,7 @@ exportMethods("glm",
+               "predict",
+               "summary",
+               "spark.kmeans",
++              "spark.notkmeans",
+               "fitted",
+               "spark.mlp",
+               "spark.naiveBayes",
+diff --git a/R/pkg/R/generics.R b/R/pkg/R/generics.R
+index 499c7b2..7524f28 100644
+--- a/R/pkg/R/generics.R
++++ b/R/pkg/R/generics.R
+@@ -1359,6 +1359,10 @@ setGeneric("spark.isoreg", function(data, formula, ...) { standardGeneric("spark
+ #' @export
+ setGeneric("spark.kmeans", function(data, formula, ...) { standardGeneric("spark.kmeans") })
+ 
++#' @rdname spark.notkmeans
++#' @export
++setGeneric("spark.notkmeans", function(data, formula, ...) { standardGeneric("spark.notkmeans") })
++
+ #' @rdname spark.kstest
+ #' @export
+ setGeneric("spark.kstest", function(data, ...) { standardGeneric("spark.kstest") })
+diff --git a/R/pkg/R/mllib.R b/R/pkg/R/mllib.R
+index d736bbb..46983a3 100644
+--- a/R/pkg/R/mllib.R
++++ b/R/pkg/R/mllib.R
+@@ -1141,7 +1141,11 @@ read.ml <- function(path) {
+     new("GeneralizedLinearRegressionModel", jobj = jobj)
+   } else if (isInstanceOf(jobj, "org.apache.spark.ml.r.KMeansWrapper")) {
+     new("KMeansModel", jobj = jobj)
+-  } else if (isInstanceOf(jobj, "org.apache.spark.ml.r.LDAWrapper")) {
++  }
++    else if (isInstanceOf(jobj, "org.apache.spark.ml.r.notKMeansWrapper")) {
++    new("KMeansModel", jobj = jobj)
++  } 
++  else if (isInstanceOf(jobj, "org.apache.spark.ml.r.LDAWrapper")) {
+     new("LDAModel", jobj = jobj)
+   } else if (isInstanceOf(jobj, "org.apache.spark.ml.r.MultilayerPerceptronClassifierWrapper")) {
+     new("MultilayerPerceptronClassificationModel", jobj = jobj)
+@@ -2112,3 +2116,115 @@ print.summary.GBTRegressionModel <- function(x, ...) {
++
++#' (not) K-Means Clustering Model
++#'
++#' Fits a (not) k-means clustering model against a Spark DataFrame, similarly to R's kmeans().
++#' Users can call \code{summary} to print a summary of the fitted model, \code{predict} to make
++#' predictions on new data, and \code{write.ml}/\code{read.ml} to save/load fitted models.
++#'
++#' @param data a SparkDataFrame for training.
++#' @param formula a symbolic description of the model to be fitted. Currently only a few formula
++#'                operators are supported, including '~', '.', ':', '+', and '-'.
++#'                Note that the response variable of formula is empty in spark.kmeans.
++#' @param k number of centers.
++#' @param maxIter maximum iteration number.
++#' @param initMode the initialization algorithm choosen to fit the model.
++#' @param ... additional argument(s) passed to the method.
++#' @return \code{spark.kmeans} returns a fitted k-means model.
++#' @rdname spark.notkmeans
++#' @aliases spark.notkmeans,SparkDataFrame,formula-method
++#' @name spark.notkmeans
++#' @export
++#' @examples
++#' \dontrun{
++#' sparkR.session()
++#' data(iris)
++#' df <- createDataFrame(iris)
++#' model <- spark.notkmeans(df, Sepal_Length ~ Sepal_Width, k = 4, initMode = "random")
++#' summary(model)
++#'
++#' # fitted values on training data
++#' fitted <- predict(model, df)
++#' head(select(fitted, "Sepal_Length", "prediction"))
++#'
++#' # save fitted model to input path
++#' path <- "path/to/model"
++#' write.ml(model, path)
++#'
++#' # can also read back the saved model and print
++#' savedModel <- read.ml(path)
++#' summary(savedModel)
++#' }
++#' @note spark.notkmeans since 2.0.0
++#' @seealso \link{predict}, \link{read.ml}, \link{write.ml}
++setMethod("spark.notkmeans", signature(data = "SparkDataFrame", formula = "formula"),
++          function(data, formula, k = 2, maxIter = 20, initMode = c("k-means||", "random")) {
++            formula <- paste(deparse(formula), collapse = "")
++            initMode <- match.arg(initMode)
++            jobj <- callJStatic("org.apache.spark.ml.r.notKMeansWrapper", "fit", data@sdf, formula,
++                                as.integer(k), as.integer(maxIter), initMode)
++            new("KMeansModel", jobj = jobj)
++          })
++          
+diff --git a/mllib/src/main/scala/org/apache/spark/ml/r/RWrappers.scala b/mllib/src/main/scala/org/apache/spark/ml/r/RWrappers.scala
+index b59fe29..7d110d6 100644
+--- a/mllib/src/main/scala/org/apache/spark/ml/r/RWrappers.scala
++++ b/mllib/src/main/scala/org/apache/spark/ml/r/RWrappers.scala
+@@ -44,6 +44,8 @@ private[r] object RWrappers extends MLReader[Object] {
+         GeneralizedLinearRegressionWrapper.load(path)
+       case "org.apache.spark.ml.r.KMeansWrapper" =>
+         KMeansWrapper.load(path)
++      case "org.apache.spark.ml.r.notKMeansWrapper" =>  // added code for notKmeans tests
++        notKMeansWrapper.load(path)
+       case "org.apache.spark.ml.r.MultilayerPerceptronClassifierWrapper" =>
+         MultilayerPerceptronClassifierWrapper.load(path)
+       case "org.apache.spark.ml.r.LDAWrapper" =>
+diff --git a/mllib/src/main/scala/org/apache/spark/ml/r/notKMeansWrapper.scala b/mllib/src/main/scala/org/apache/spark/ml/r/notKMeansWrapper.scala
+new file mode 100755
+index 0000000..423ce04
+--- /dev/null
++++ b/mllib/src/main/scala/org/apache/spark/ml/r/notKMeansWrapper.scala
+@@ -0,0 +1,136 @@
++/*
++ * Licensed to the Apache Software Foundation (ASF) under one or more
++ * contributor license agreements.  See the NOTICE file distributed with
++ * this work for additional information regarding copyright ownership.
++ * The ASF licenses this file to You under the Apache License, Version 2.0
++ * (the "License"); you may not use this file except in compliance with
++ * the License.  You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package org.apache.spark.ml.r
++
++import org.apache.hadoop.fs.Path
++import org.json4s._
++import org.json4s.JsonDSL._
++import org.json4s.jackson.JsonMethods._
++
++import org.apache.spark.ml.{Pipeline, PipelineModel}
++import org.apache.spark.ml.attribute.AttributeGroup
++import org.apache.spark.ml.clustering.{KMeans, KMeansModel}
++import org.apache.spark.ml.feature.RFormula
++import org.apache.spark.ml.util._
++import org.apache.spark.sql.{DataFrame, Dataset}
++
++private[r] class notKMeansWrapper private (
++    val pipeline: PipelineModel,
++    val features: Array[String],
++    val size: Array[Long],
++    val isLoaded: Boolean = false) extends MLWritable {
++
++  private val kMeansModel: KMeansModel = pipeline.stages(1).asInstanceOf[KMeansModel]
++
++  lazy val coefficients: Array[Double] = kMeansModel.clusterCenters.flatMap(_.toArray)
++
++  lazy val k: Int = kMeansModel.getK
++
++  lazy val cluster: DataFrame = kMeansModel.summary.cluster
++
++  def fitted(method: String): DataFrame = {
++    if (method == "centers") {
++      kMeansModel.summary.predictions.drop(kMeansModel.getFeaturesCol)
++    } else if (method == "classes") {
++      kMeansModel.summary.cluster
++    } else {
++      throw new UnsupportedOperationException(
++        s"Method (centers or classes) required but $method found.")
++    }
++  }
++
++  def transform(dataset: Dataset[_]): DataFrame = {
++    pipeline.transform(dataset).drop(kMeansModel.getFeaturesCol)
++  }
++
++  override def write: MLWriter = new notKMeansWrapper.notKMeansWrapperWriter(this)
++}
++
++private[r] object notKMeansWrapper extends MLReadable[notKMeansWrapper] {
++
++  def fit(
++      data: DataFrame,
++      formula: String,
++      k: Int,
++      maxIter: Int,
++      initMode: String): notKMeansWrapper = {
++
++    val rFormula = new RFormula()
++      .setFormula(formula)
++      .setFeaturesCol("features")
++    RWrapperUtils.checkDataColumns(rFormula, data)
++    val rFormulaModel = rFormula.fit(data)
++
++    // get feature names from output schema
++    val schema = rFormulaModel.transform(data).schema
++    val featureAttrs = AttributeGroup.fromStructField(schema(rFormulaModel.getFeaturesCol))
++      .attributes.get
++    val features = featureAttrs.map(_.name.get)
++
++    val kMeans = new KMeans()
++      .setK(k)
++      .setMaxIter(maxIter)
++      .setInitMode(initMode)
++      .setFeaturesCol(rFormula.getFeaturesCol)
++
++    val pipeline = new Pipeline()
++      .setStages(Array(rFormulaModel, kMeans))
++      .fit(data)
++
++    val kMeansModel: KMeansModel = pipeline.stages(1).asInstanceOf[KMeansModel]
++    val size: Array[Long] = kMeansModel.summary.clusterSizes
++
++    new notKMeansWrapper(pipeline, features, size)
++  }
++
++  override def read: MLReader[notKMeansWrapper] = new notKMeansWrapperReader
++
++  override def load(path: String): notKMeansWrapper = super.load(path)
++
++  class notKMeansWrapperWriter(instance: notKMeansWrapper) extends MLWriter {
++
++    override protected def saveImpl(path: String): Unit = {
++      val rMetadataPath = new Path(path, "rMetadata").toString
++      val pipelinePath = new Path(path, "pipeline").toString
++
++      val rMetadata = ("class" -> instance.getClass.getName) ~
++        ("features" -> instance.features.toSeq) ~
++        ("size" -> instance.size.toSeq)
++      val rMetadataJson: String = compact(render(rMetadata))
++
++      sc.parallelize(Seq(rMetadataJson), 1).saveAsTextFile(rMetadataPath)
++      instance.pipeline.save(pipelinePath)
++    }
++  }
++
++  class notKMeansWrapperReader extends MLReader[notKMeansWrapper] {
++
++    override def load(path: String): notKMeansWrapper = {
++      implicit val format = DefaultFormats
++      val rMetadataPath = new Path(path, "rMetadata").toString
++      val pipelinePath = new Path(path, "pipeline").toString
++      val pipeline = PipelineModel.load(pipelinePath)
++
++      val rMetadataStr = sc.textFile(rMetadataPath, 1).first()
++      val rMetadata = parse(rMetadataStr)
++      val features = (rMetadata \ "features").extract[Array[String]]
++      val size = (rMetadata \ "size").extract[Array[Long]]
++      new notKMeansWrapper(pipeline, features, size, isLoaded = true)
++    }
++  }
++}
